@@ -1,4 +1,5 @@
 (ns machine-learning.core
+  (:require [machine-learning.network])
   (:gen-class))
 
 (defn -main
