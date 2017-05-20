@@ -1,60 +1,64 @@
 (ns machine-learning.network
   (:require [clojure.core.matrix :as m]
+    [clojure.core.matrix.random :as mr]
     ;[uncomplicate.neanderthal.core :refer :all]
     ;[uncomplicate.neanderthal.native :refer :all]
             )
   (:import (java.util Random)))
 
+(defn shape [vectors]
+  (reduce #(if-not (coll? %2)
+             (throw (IllegalArgumentException.))
+             (conj %1 (count %2)))
+          [] vectors))
+
 (defn sample-gaussian
   ([n] (sample-gaussian n (Random.)))
   ([n rng]
-   (into [] (repeatedly n #(.nextGaussian rng)))))
+   (if-not (coll? n)
+            (into [] (repeatedly n #(.nextGaussian rng)))
+            (mapv #(sample-gaussian % rng) n))))
 
 (defn- create-initial-weights [sizes]
-  (mapv #(sample-gaussian (* (first %) (second %)))
-        (map vector (butlast sizes) (rest sizes))))
+  (mapv mr/sample-normal (map vector (butlast sizes) (rest sizes))))
 
 (defn create-network [sizes]
-  (if (= 0 (count sizes))
+  (if (>= 2 (count sizes))
     (throw (IllegalArgumentException. (format "create-network requires sizes to have at least one element, was: %s" sizes))))
   {:num-layers (count sizes)
    :sizes      sizes
-   :biases     (sample-gaussian (count (rest sizes)))
+   :biases     (sample-gaussian (rest sizes))
    :weights    (create-initial-weights sizes)})
 
 (defn sigmoid [z]
-  (if-not (vector? z)
+  (if-not (coll? z)
     (Math/exp z)
     (mapv sigmoid z)))
 
 (defn sigmoid_prime [z]
-  (if-not (vector? z)
+  (if-not (coll? z)
     (* (sigmoid z) (- 1 (sigmoid z)))
     (let [sz (sigmoid z)]
       (mapv * sz (mapv - (repeat 1) sz)))))
 
 (defn feed-forward [network input]
   "Return the output of the network for a given input"
-  (loop [result input layers (map vector (:biases network) (:weights network))]
-    (if (empty? layers)
-      result
-      (recur
-        (sigmoid (mapv #(+ % (ffirst layers)) (m/dot result (second (first layers)))))
-        (rest layers)))))
+  (reduce #(sigmoid (mapv + (m/dot %1 (first %2)) (second %2)))
+          input (mapv vector (:weights network) (:biases network))))
 
 (defn cost-derivative [output_activations desired_output]
   (mapv - output_activations desired_output))
 
 (defn collect-activations [network input]
-  (loop [biases (:biases network)
-         weights (:weights network)
+  (loop [weights (:weights network)
+         biases (:biases network)
          activation input
-         av [input]
+         av []
          zs []]
-    (if (> 0 biases)
+    (if (>= 0 (count biases))
       [av zs]
-      (let [z (+ (m/dot (first weights) activation) (first biases))]
-        (recur (rest biases) (rest weights) (sigmoid z) (conj av activation) (conj zs z))))))
+      (let [z (mapv + (m/dot activation (first weights)) (first biases))]
+        (recur (rest weights) (rest biases) (sigmoid z) (conj av activation) (conj zs z))))))
 
 (defn backprop [network [input desired_output]]
   "Return a tuple '(nabla_b, nabla_w)' representing the
@@ -63,16 +67,23 @@
   (let [[activations zs] (collect-activations network input)
         delta (mapv * (cost-derivative (last activations) desired_output) (sigmoid_prime (last zs)))
         output_layer_index (dec (:num-layers network))]
+    (println (format "output_layer_index: %s" output_layer_index))
+    (println (format "delta: %s" delta))
+    (println (format "activations: %s" activations))
+    (println (format "zs: %s" zs))
     (loop [layer_index (dec output_layer_index)
            last_delta delta
-           nabla_b (assoc (map m/zero-vector (m/shape (:biases network))) output_layer_index delta)
-           nabla_w (assoc (map m/zero-vector (m/shape (:weights network))) output_layer_index (m/dot delta (nth activations (dec output_layer_index))))]
+           nabla_b (assoc (mapv m/zero-vector (shape (:biases network))) (dec output_layer_index) delta)
+           nabla_w (assoc (mapv m/zero-vector (shape (:weights network)))
+                     output_layer_index
+                     (m/dot delta (m/transpose (nth activations (dec output_layer_index)))))]
+      (println ".")
       (if (< 0 layer_index)
         [nabla_b nabla_w]
         (let [z (nth zs layer_index)
               sp (sigmoid_prime z)
               delta_b (* sp (m/dot (nth (:weights network) (inc layer_index)) last_delta))
-              delta_w (m/dot delta_b (nth activations (inc layer_index)))]
+              delta_w (m/dot delta_b (m/transpose (nth activations (inc layer_index))))]
           (recur (dec layer_index) delta_b (assoc nabla_b layer_index delta_b) (assoc nabla_w layer_index delta_w)))))))
 
 (defn modify-vector [vector modificaton batch-size eta]
@@ -129,7 +140,7 @@
       epoch, and partial progress printed out.  This is useful for
       tracking progress, but slows things down substantially."
    (loop [epoc 0 result network]
-     (if (> 0 epoc)
+     (if (< 0 epoc)
        (if (nil? test_data)
          (println (format "Epoch %s complete" epoc))
          (println (format "Epoc %s: %s / %s" epoc (evaluate result test_data) (count test_data)))))
