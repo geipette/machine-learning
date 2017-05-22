@@ -1,16 +1,26 @@
 (ns machine-learning.network
   (:require [clojure.core.matrix :as m]
     [clojure.core.matrix.random :as mr]
+    [clojure.core.matrix.operators :refer [* + -]]
+
     ;[uncomplicate.neanderthal.core :refer :all]
     ;[uncomplicate.neanderthal.native :refer :all]
             )
   (:import (java.util Random)))
+
+;(m/set-current-implementation :vectorz)
 
 (defn shape [vectors]
   (reduce #(if-not (coll? %2)
              (throw (IllegalArgumentException.))
              (conj %1 (count %2)))
           [] vectors))
+
+(defn last-index [v]
+  (dec (count v)))
+
+(defn zero-values [vector]
+  (mapv m/zero-vector (shape vector)))
 
 (defn sample-gaussian
   ([n] (sample-gaussian n (Random.)))
@@ -32,58 +42,55 @@
 
 (defn sigmoid [z]
   (if-not (coll? z)
-    (Math/exp z)
+    (/ 1.0 (+ 1 (Math/exp (- z))))
     (mapv sigmoid z)))
 
-(defn sigmoid_prime [z]
+(defn sigmoid-prime [z]
   (if-not (coll? z)
     (* (sigmoid z) (- 1 (sigmoid z)))
     (let [sz (sigmoid z)]
-      (mapv * sz (mapv - (repeat 1) sz)))))
+      (* sz (mapv - (repeat 1) sz)))))
 
 (defn feed-forward [network input]
   "Return the output of the network for a given input"
-  (reduce #(sigmoid (mapv + (m/dot %1 (first %2)) (second %2)))
-          input (mapv vector (:weights network) (:biases network))))
+  (reduce #(sigmoid (+ (m/dot %1 (first %2)) (second %2)))
+          input (map vector (:weights network) (:biases network))))
 
 (defn cost-derivative [output_activations desired_output]
-  (mapv - output_activations desired_output))
+  (- output_activations desired_output))
 
 (defn collect-activations [network input]
   (loop [weights (:weights network)
          biases (:biases network)
          activation input
-         av []
+         activations [input]
          zs []]
-    (if (>= 0 (count biases))
-      [av zs]
-      (let [z (mapv + (m/dot activation (first weights)) (first biases))]
-        (recur (rest weights) (rest biases) (sigmoid z) (conj av activation) (conj zs z))))))
+    (if (empty? biases)
+      [activations zs]
+      (let [z (m/add (m/dot activation (first weights)) (first biases))
+            next_activation (sigmoid z)]
+        (recur (rest weights) (rest biases) next_activation (conj activations next_activation) (conj zs z))))))
 
 (defn backprop [network [input desired_output]]
   "Return a tuple '(nabla_b, nabla_w)' representing the
   gradient for the cost function C_x.  'nabla_b' and
   'nabla_w' are layer-by-layer lists of vectors."
   (let [[activations zs] (collect-activations network input)
-        delta (mapv * (cost-derivative (last activations) desired_output) (sigmoid_prime (last zs)))
-        output_layer_index (dec (:num-layers network))]
-    (println (format "output_layer_index: %s" output_layer_index))
-    (println (format "delta: %s" delta))
-    (println (format "activations: %s" activations))
-    (println (format "zs: %s" zs))
-    (loop [layer_index (dec output_layer_index)
+        delta (* (cost-derivative (last activations) desired_output) (sigmoid-prime (last zs)))
+        nabla_b (zero-values (:biases network))
+        nabla_w (zero-values (:weights network))]
+    (loop [layer_index (- (:num-layers network) 2)
            last_delta delta
-           nabla_b (assoc (mapv m/zero-vector (shape (:biases network))) (dec output_layer_index) delta)
-           nabla_w (assoc (mapv m/zero-vector (shape (:weights network)))
-                     output_layer_index
-                     (m/dot delta (m/transpose (nth activations (dec output_layer_index)))))]
-      (println ".")
-      (if (< 0 layer_index)
+           nabla_b (assoc nabla_b (last-index nabla_b) delta)
+           nabla_w (assoc nabla_w (last-index nabla_w) (m/dot delta (m/transpose (nth activations (dec (last-index activations)))))) ; Problems here
+           ]
+      (println (format "layer_index: %s" layer_index))
+      (if (>= 0 layer_index)
         [nabla_b nabla_w]
-        (let [z (nth zs layer_index)
-              sp (sigmoid_prime z)
+        (let [sp (sigmoid-prime (nth zs layer_index))
               delta_b (* sp (m/dot (nth (:weights network) (inc layer_index)) last_delta))
-              delta_w (m/dot delta_b (m/transpose (nth activations (inc layer_index))))]
+              delta_w (m/dot delta_b (m/transpose (nth activations (inc layer_index))))
+              ]
           (recur (dec layer_index) delta_b (assoc nabla_b layer_index delta_b) (assoc nabla_w layer_index delta_w)))))))
 
 (defn modify-vector [vector modificaton batch-size eta]
@@ -96,8 +103,8 @@
   is the learning rate."
   (loop [modified_network network
          remaining-batch batch
-         nabla_b (map m/zero-vector (m/shape (:biases network)))
-         nabla_w (map m/zero-vector (m/shape (:weights network)))]
+         nabla_b (zero-values (:biases network))
+         nabla_w (zero-values (:weights network))]
     (if (< 0 (count remaining-batch))
       modified_network
       (let [[delta_nabla_b delta_nabla_w] (backprop network (first remaining-batch))

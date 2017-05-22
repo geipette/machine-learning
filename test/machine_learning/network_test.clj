@@ -27,10 +27,18 @@
 
 (facts "about 'sigmoid'"
        (fact "supports single input"
-             (sigmoid 1) => 2.718281828459045
-             (sigmoid 0) => 1.0)
+             (sigmoid 1) => 0.7310585786300049
+             (sigmoid 0) => 0.5)
        (fact "support vector input"
-             (sigmoid [-1 0 1]) => [0.36787944117144233 1.0 2.718281828459045]))
+             (sigmoid [-1 0 1]) => [0.2689414213699951 0.5 0.7310585786300049]))
+
+(facts "about 'sigmoid-prime"
+       (fact "supports single input"
+             (sigmoid-prime 1) => truthy)
+       (fact "calculates expected results"
+             (sigmoid-prime 1) => 0.19661193324148185
+             (sigmoid-prime [1 1]) => [0.19661193324148185 0.19661193324148185]
+             (sigmoid-prime [1 0]) => [0.19661193324148185 0.25]))
 
 (facts "about 'create-network'"
        (fact "Fails when sizes contains one or less elements"
@@ -64,9 +72,31 @@
        (fact "returns expected output structure"
              (count (feed-forward (create-network [2 3 2]) [1 1])) => 2)
        (fact "return expected output for given networks"
-             (feed-forward test-network [0 0]) => [1.0 1.0]
-             (feed-forward test-network [1 1]) => [1.0 1.0]
-             (feed-forward (assoc test-network :biases [[-1 1 -1] [0 0]]) [1 1]) => [1.0 1.0]
-             (feed-forward (assoc test-network :biases [[-1 1 -1] [1 1]]) [1 1]) => [2.718281828459045 2.718281828459045]
+             (feed-forward test-network [0 0]) => [0.5 0.5]
+             (feed-forward test-network [1 1]) => [0.5 0.5]
+             (feed-forward (assoc test-network :biases [[-1 1 -1] [0 0]]) [1 1]) => [0.5 0.5]
+             (feed-forward (assoc test-network :biases [[-1 1 -1] [1 1]]) [1 1]) => [0.7310585786300049 0.7310585786300049]
              ))
+
+(facts "about 'collect-activations'"
+       (fact "returns expected output structure"
+             (let [output (collect-activations (create-network [2 3 2]) [1 1])
+                   activations (first output)
+                   zs (second output)]
+               (count activations) => 3
+               (count (first activations)) => 2
+               (count (second activations)) => 3
+               (count (nth activations 2)) => 2
+               (count zs) => 2
+               (count (first zs)) => 3
+               (count (second zs)) => 2))
+       (fact "returns expected values"
+             (let [output (collect-activations test-network [1 1])
+                   activations (first output)
+                   zs (second output)]
+               (first activations) => [1 1]
+               (second activations) => [0.5 0.5 0.5]
+               (nth activations 2) => [0.5 0.5]
+               (first zs) => [0 0 0]
+               (second zs) = [0 0])))
 
