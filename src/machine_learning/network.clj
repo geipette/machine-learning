@@ -10,7 +10,7 @@
 
 ;(m/set-current-implementation :vectorz)
 
-(defn shape [vectors]
+(defn vector-shape [vectors]
   (reduce #(if-not (coll? %2)
              (throw (IllegalArgumentException.))
              (conj %1 (count %2)))
@@ -20,7 +20,7 @@
   (dec (count v)))
 
 (defn zero-values [vector]
-  (mapv m/zero-vector (shape vector)))
+  (mapv m/zero-vector (vector-shape vector)))
 
 (defn sample-gaussian
   ([n] (sample-gaussian n (Random.)))
@@ -29,16 +29,13 @@
             (into [] (repeatedly n #(.nextGaussian rng)))
             (mapv #(sample-gaussian % rng) n))))
 
-(defn- create-initial-weights [sizes]
-  (mapv mr/sample-normal (map vector (butlast sizes) (rest sizes))))
-
 (defn create-network [sizes]
   (if (>= 2 (count sizes))
     (throw (IllegalArgumentException. (format "create-network requires sizes to have at least one element, was: %s" sizes))))
   {:num-layers (count sizes)
    :sizes      sizes
-   :biases     (sample-gaussian (rest sizes))
-   :weights    (create-initial-weights sizes)})
+   :biases     (mapv mr/sample-normal (map vector (rest sizes) (repeat 1)))
+   :weights    (mapv mr/sample-normal (map vector (rest sizes) (butlast sizes)))})
 
 (defn sigmoid [z]
   (if-not (coll? z)
@@ -51,25 +48,38 @@
     (let [sz (sigmoid z)]
       (* sz (mapv - (repeat 1) sz)))))
 
+(defn assert-correct-input [input]
+  (if (vector? input)
+    (let [shape (m/shape input)]
+      (if (and (= 2 (count shape))
+               (= 1 (second shape)))
+        input))
+    (throw (IllegalArgumentException. (format "input must be a vector with shape [n, 1], was %s" input)))))
+
 (defn feed-forward [network input]
   "Return the output of the network for a given input"
-  (reduce #(sigmoid (+ (m/dot %1 (first %2)) (second %2)))
-          input (map vector (:weights network) (:biases network))))
+  (loop [result (assert-correct-input input)
+         biases (:biases network)
+         weights (:weights network)]
+    (if (empty? biases)
+      result
+      (let [output (sigmoid (+ (map #(m/dot % result) (first weights)) (first biases)))]
+        (recur output (rest biases) (rest weights))))))
 
 (defn cost-derivative [output_activations desired_output]
   (- output_activations desired_output))
 
 (defn collect-activations [network input]
-  (loop [weights (:weights network)
+  (loop [activation (assert-correct-input input)
          biases (:biases network)
-         activation input
+         weights (:weights network)
          activations [input]
          zs []]
     (if (empty? biases)
       [activations zs]
-      (let [z (m/add (m/dot activation (first weights)) (first biases))
+      (let [z (+ (map #(m/dot % activation) (first weights)) (first biases))
             next_activation (sigmoid z)]
-        (recur (rest weights) (rest biases) next_activation (conj activations next_activation) (conj zs z))))))
+        (recur next_activation (rest biases) (rest weights) (conj activations next_activation) (conj zs z))))))
 
 (defn backprop [network [input desired_output]]
   "Return a tuple '(nabla_b, nabla_w)' representing the
@@ -77,12 +87,12 @@
   'nabla_w' are layer-by-layer lists of vectors."
   (let [[activations zs] (collect-activations network input)
         delta (* (cost-derivative (last activations) desired_output) (sigmoid-prime (last zs)))
-        nabla_b (zero-values (:biases network))
-        nabla_w (zero-values (:weights network))]
+        nabla_b (mapv m/zero-array (map m/shape (:biases network)))
+        nabla_w (mapv m/zero-array (map m/shape (:weights network)))]
     (loop [layer_index (- (:num-layers network) 2)
            last_delta delta
            nabla_b (assoc nabla_b (last-index nabla_b) delta)
-           nabla_w (assoc nabla_w (last-index nabla_w) (m/dot delta (m/transpose (nth activations (dec (last-index activations)))))) ; Problems here
+           nabla_w (assoc nabla_w (last-index nabla_w) (m/dot delta (m/transpose [(nth activations (dec (last-index activations)))])))
            ]
       (println (format "layer_index: %s" layer_index))
       (if (>= 0 layer_index)

@@ -6,15 +6,15 @@
 
 (facts "about 'shape'"
        (fact "nil input returns []"
-             (shape nil) => [])
+             (vector-shape nil) => [])
        (fact "empty vector returns a empty vector"
-             (shape []) => [])
+             (vector-shape []) => [])
        (fact "vector with unnested elements results in a IllegalArgumentException"
-             (shape [1 2 3]) => (throws IllegalArgumentException)
-             (shape [[1 2] 3]) => (throws IllegalArgumentException))
+             (vector-shape [1 2 3]) => (throws IllegalArgumentException)
+             (vector-shape [[1 2] 3]) => (throws IllegalArgumentException))
        (fact "returns expected output for given input"
-             (shape [[1 2] [1 2 3]]) => [2 3]
-             (shape [[1 2] [1 2 3] [] [1]]) => [2 3 0 1]))
+             (vector-shape [[1 2] [1 2 3]]) => [2 3]
+             (vector-shape [[1 2] [1 2 3] [] [1]]) => [2 3 0 1]))
 
 (facts "about 'sample-gaussian'"
        (fact "returns expected numbers with defined random seed"
@@ -52,35 +52,36 @@
              (:sizes (create-network [1 2 3])) => [1 2 3]
              (:sizes (create-network [30 40 2 2])) => [30 40 2 2])
        (fact "Biases should be present and have the correct structure, (one per node excluding first layer)"
-             (shape (:biases (create-network [2 3 4]))) => [3 4]
-             (shape (:biases (create-network [2 3 4 5]))) => [3 4 5])
+             (vector-shape (:biases (create-network [2 3 4]))) => [3 4]
+             (vector-shape (:biases (create-network [2 3 4 5]))) => [3 4 5])
        (fact "Weights shold be a vector with weights between layers"
              (vector? (:weights (create-network [1 2 1]))) => truthy
-             (count (first (:weights (create-network [2 3 2])))) => 2
-             (count (ffirst (:weights (create-network [2 3 2])))) => 3
-             (count (nth (:weights (create-network [2 3 2])) 1)) => 3
-             (count (first (nth (:weights (create-network [2 3 2])) 1))) => 2))
+             (count (first (:weights (create-network [2 3 2])))) => 3
+             (count (ffirst (:weights (create-network [2 3 2])))) => 2
+             (count (nth (:weights (create-network [2 3 2])) 1)) => 2
+             (count (first (nth (:weights (create-network [2 3 2])) 1))) => 3))
 
 (def test-network
   {:num-layers 3
    :sizes      [2 3 2]
-   :biases     [[0 0 0] [0 0]]
-   :weights    [[[0 0 0] [0 0 0]]
-                [[0 0] [0 0] [0 0]]]})
+   :biases     [[[0] [0] [0]]
+                [[0] [0]]]
+   :weights    [[[0 0] [0 0] [0 0]]
+                [[0 0 0] [0 0 0]]]})
 
 (facts "about 'feed-forward'"
        (fact "returns expected output structure"
-             (count (feed-forward (create-network [2 3 2]) [1 1])) => 2)
+             (count (feed-forward (create-network [2 3 2]) [[1] [1]])) => 2)
        (fact "return expected output for given networks"
-             (feed-forward test-network [0 0]) => [0.5 0.5]
-             (feed-forward test-network [1 1]) => [0.5 0.5]
-             (feed-forward (assoc test-network :biases [[-1 1 -1] [0 0]]) [1 1]) => [0.5 0.5]
-             (feed-forward (assoc test-network :biases [[-1 1 -1] [1 1]]) [1 1]) => [0.7310585786300049 0.7310585786300049]
+             (feed-forward test-network [[0] [0]]) => [[0.5] [0.5]]
+             (feed-forward test-network [[1] [1]]) => [[0.5] [0.5]]
+             (feed-forward (assoc test-network :biases [[[-1] [1] [-1]] [[0] [0]]]) [[1] [1]]) => [[0.5] [0.5]]
+             (feed-forward (assoc test-network :biases [[[-1] [1] [-1]] [[1] [1]]]) [[1] [1]]) => [[0.7310585786300049] [0.7310585786300049]]
              ))
 
 (facts "about 'collect-activations'"
        (fact "returns expected output structure"
-             (let [output (collect-activations (create-network [2 3 2]) [1 1])
+             (let [output (collect-activations (create-network [2 3 2]) [[1] [1]])
                    activations (first output)
                    zs (second output)]
                (count activations) => 3
@@ -89,14 +90,18 @@
                (count (nth activations 2)) => 2
                (count zs) => 2
                (count (first zs)) => 3
-               (count (second zs)) => 2))
+               (count (second zs)) => 2
+               ))
        (fact "returns expected values"
-             (let [output (collect-activations test-network [1 1])
+             (let [output (collect-activations test-network [[1] [1]])
                    activations (first output)
                    zs (second output)]
-               (first activations) => [1 1]
-               (second activations) => [0.5 0.5 0.5]
-               (nth activations 2) => [0.5 0.5]
-               (first zs) => [0 0 0]
-               (second zs) = [0 0])))
+               (first activations) => [[1] [1]]
+               (second activations) => [[0.5] [0.5] [0.5]]
+               (nth activations 2) => [[0.5] [0.5]]
+               (first zs) => [[0] [0] [0]]
+               (second zs) => [[0.0] [0.0]])
+             )
+
+       )
 
