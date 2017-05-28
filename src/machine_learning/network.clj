@@ -1,7 +1,7 @@
 (ns machine-learning.network
   (:require [clojure.core.matrix :as m]
-    [clojure.core.matrix.random :as mr]
-    [clojure.core.matrix.operators :refer [* + -]]
+            [clojure.core.matrix.random :as mr]
+            [clojure.core.matrix.operators :refer [* + -]]
 
     ;[uncomplicate.neanderthal.core :refer :all]
     ;[uncomplicate.neanderthal.native :refer :all]
@@ -26,8 +26,8 @@
   ([n] (sample-gaussian n (Random.)))
   ([n rng]
    (if-not (coll? n)
-            (into [] (repeatedly n #(.nextGaussian rng)))
-            (mapv #(sample-gaussian % rng) n))))
+     (into [] (repeatedly n #(.nextGaussian rng)))
+     (mapv #(sample-gaussian % rng) n))))
 
 (defn create-network [sizes]
   (if (>= 2 (count sizes))
@@ -87,21 +87,19 @@
   'nabla_w' are layer-by-layer lists of vectors."
   (let [[activations zs] (collect-activations network input)
         delta (* (cost-derivative (last activations) desired_output) (sigmoid-prime (last zs)))
-        nabla_b (mapv m/zero-array (map m/shape (:biases network)))
-        nabla_w (mapv m/zero-array (map m/shape (:weights network)))]
-    (loop [layer_index (- (:num-layers network) 2)
+        zero_b (mapv m/zero-array (map m/shape (:biases network)))
+        zero_w (mapv m/zero-array (map m/shape (:weights network)))]
+    (loop [layers (range (- (:num-layers network) 2) 0 -1)
            last_delta delta
-           nabla_b (assoc nabla_b (last-index nabla_b) delta)
-           nabla_w (assoc nabla_w (last-index nabla_w) (m/dot delta (m/transpose [(nth activations (dec (last-index activations)))])))
-           ]
-      (println (format "layer_index: %s" layer_index))
-      (if (>= 0 layer_index)
+           nabla_b (assoc zero_b (first layers) delta)
+           nabla_w (assoc zero_w (first layers) (m/dot delta (m/transpose (nth activations (dec (last-index activations))))))]
+      (if (empty? layers)
         [nabla_b nabla_w]
-        (let [sp (sigmoid-prime (nth zs layer_index))
-              delta_b (* sp (m/dot (nth (:weights network) (inc layer_index)) last_delta))
-              delta_w (m/dot delta_b (m/transpose (nth activations (inc layer_index))))
-              ]
-          (recur (dec layer_index) delta_b (assoc nabla_b layer_index delta_b) (assoc nabla_w layer_index delta_w)))))))
+        (let [layer_index (first layers)
+              sp (sigmoid-prime (nth zs (dec layer_index)))
+              delta_b (* sp (m/dot (m/transpose (nth (:weights network) layer_index)) last_delta))
+              delta_w (m/dot delta_b (m/transpose (nth activations (dec layer_index))))]
+          (recur (rest layers) delta_b (assoc nabla_b (dec layer_index) delta_b) (assoc nabla_w (dec layer_index) delta_w)))))))
 
 (defn modify-vector [vector modificaton batch-size eta]
   (mapv - vector (* (/ eta batch-size) modificaton)))
@@ -148,14 +146,14 @@
   ([network training_data epocs mini_batch_size eta]
    (sgd network training_data epocs mini_batch_size eta nil))
   ([network training_data epocs mini_batch_size eta test_data]
-    "Train the neural network using mini-batch stochastic
-      gradient descent.  The 'training_data' is a list of tuples
-      '(x, y)' representing the training inputs and the desired
-      outputs.  The other non-optional parameters are
-      self-explanatory. If 'test_data' is provided then the
-      network will be evaluated against the test data after each
-      epoch, and partial progress printed out.  This is useful for
-      tracking progress, but slows things down substantially."
+   "Train the neural network using mini-batch stochastic
+     gradient descent.  The 'training_data' is a list of tuples
+     '(x, y)' representing the training inputs and the desired
+     outputs.  The other non-optional parameters are
+     self-explanatory. If 'test_data' is provided then the
+     network will be evaluated against the test data after each
+     epoch, and partial progress printed out.  This is useful for
+     tracking progress, but slows things down substantially."
    (loop [epoc 0 result network]
      (if (< 0 epoc)
        (if (nil? test_data)
