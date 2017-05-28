@@ -10,17 +10,11 @@
 
 ;(m/set-current-implementation :vectorz)
 
-(defn vector-shape [vectors]
-  (reduce #(if-not (coll? %2)
-             (throw (IllegalArgumentException.))
-             (conj %1 (count %2)))
-          [] vectors))
-
 (defn last-index [v]
   (dec (count v)))
 
-(defn zero-values [vector]
-  (mapv m/zero-vector (vector-shape vector)))
+(defn zero-array [array]
+  (mapv m/zero-array (map m/shape array)))
 
 (defn sample-gaussian
   ([n] (sample-gaussian n (Random.)))
@@ -87,12 +81,13 @@
   'nabla_w' are layer-by-layer lists of vectors."
   (let [[activations zs] (collect-activations network input)
         delta (* (cost-derivative (last activations) desired_output) (sigmoid-prime (last zs)))
-        zero_b (mapv m/zero-array (map m/shape (:biases network)))
-        zero_w (mapv m/zero-array (map m/shape (:weights network)))]
-    (loop [layers (range (- (:num-layers network) 2) 0 -1)
+        zero_b (zero-array (:biases network))
+        zero_w (zero-array (:weights network))
+        last_layer_index (- (:num-layers network) 2)]
+    (loop [layers (range last_layer_index 0 -1)
            last_delta delta
-           nabla_b (assoc zero_b (first layers) delta)
-           nabla_w (assoc zero_w (first layers) (m/dot delta (m/transpose (nth activations (dec (last-index activations))))))]
+           nabla_b (assoc zero_b last_layer_index delta)
+           nabla_w (assoc zero_w last_layer_index (m/dot delta (m/transpose (nth activations last_layer_index))))]
       (if (empty? layers)
         [nabla_b nabla_w]
         (let [layer_index (first layers)
@@ -110,17 +105,17 @@
   The \"batch\" is a list of tuples \"(x, y)\", and \"eta\"
   is the learning rate."
   (loop [modified_network network
-         remaining-batch batch
-         nabla_b (zero-values (:biases network))
-         nabla_w (zero-values (:weights network))]
-    (if (< 0 (count remaining-batch))
+         remaining_batch batch
+         nabla_b (zero-array (:biases network))
+         nabla_w (zero-array (:weights network))]
+    (if (empty? remaining_batch)
       modified_network
-      (let [[delta_nabla_b delta_nabla_w] (backprop network (first remaining-batch))
+      (let [[delta_nabla_b delta_nabla_w] (backprop network (first remaining_batch))
             _nabla_b (mapv + nabla_b delta_nabla_b)
             _nabla_w (mapv + nabla_w delta_nabla_w)
             biases (mapv #(modify-vector %1 %2 (count batch) eta) (:biases modified_network) _nabla_b)
             weights (mapv #(modify-vector %1 %2 (count batch) eta) (:weights modified_network) _nabla_w)]
-        (recur (assoc modified_network :weights weights :biases biases) (rest remaining-batch) _nabla_b _nabla_w)))))
+        (recur (assoc modified_network :weights weights :biases biases) (rest remaining_batch) _nabla_b _nabla_w)))))
 
 (defn run-test [network test_data]
   (loop [remaining_data test_data
@@ -162,6 +157,5 @@
      (if (>= epoc epocs)
        result
        (do
-         (recur (inc epoc) (sgd-epoc result training_data mini_batch_size eta))))))
-  )
+         (recur (inc epoc) (sgd-epoc result training_data mini_batch_size eta)))))))
 

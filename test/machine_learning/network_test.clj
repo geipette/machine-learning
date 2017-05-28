@@ -4,18 +4,6 @@
             [clojure.core.matrix :as m])
   (:import (java.util Random)))
 
-(facts "about 'shape'"
-       (fact "nil input returns []"
-             (vector-shape nil) => [])
-       (fact "empty vector returns a empty vector"
-             (vector-shape []) => [])
-       (fact "vector with unnested elements results in a IllegalArgumentException"
-             (vector-shape [1 2 3]) => (throws IllegalArgumentException)
-             (vector-shape [[1 2] 3]) => (throws IllegalArgumentException))
-       (fact "returns expected output for given input"
-             (vector-shape [[1 2] [1 2 3]]) => [2 3]
-             (vector-shape [[1 2] [1 2 3] [] [1]]) => [2 3 0 1]))
-
 (facts "about 'sample-gaussian'"
        (fact "returns expected numbers with defined random seed"
              (first (sample-gaussian 1 (Random. 1000))) => 1.6925177840650305
@@ -51,9 +39,9 @@
        (fact "Sizes should be present and correct"
              (:sizes (create-network [1 2 3])) => [1 2 3]
              (:sizes (create-network [30 40 2 2])) => [30 40 2 2])
-       (fact "Biases should be present and have the correct structure, (one per node excluding first layer)"
-             (vector-shape (:biases (create-network [2 3 4]))) => [3 4]
-             (vector-shape (:biases (create-network [2 3 4 5]))) => [3 4 5])
+       (fact "Biases should be present and have the correct structure"
+             (m/shape (:biases (create-network [2 3 4]))) => [2 3 1]
+             (m/shape (:biases (create-network [2 3 4 5]))) => [3 3 1])
        (fact "Weights shold be a vector with weights between layers"
              (vector? (:weights (create-network [1 2 1]))) => truthy
              (count (first (:weights (create-network [2 3 2])))) => 3
