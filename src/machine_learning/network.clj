@@ -10,9 +10,6 @@
 
 ;(m/set-current-implementation :vectorz)
 
-(defn last-index [v]
-  (dec (count v)))
-
 (defn zero-array [array]
   (mapv m/zero-array (map m/shape array)))
 
