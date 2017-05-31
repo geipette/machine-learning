@@ -2,14 +2,31 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.core.matrix :as m])
-  (:import (java.util.zip GZIPOutputStream)))
+  (:import (java.util.zip GZIPOutputStream GZIPInputStream)
+           (java.io PushbackReader)))
 
+(defn load-data [filename]
+  (with-open [in (-> filename
+                     io/input-stream
+                     GZIPInputStream.
+                     io/reader
+                     PushbackReader.)]
+    (read in)))
+
+(defn load-testing-data []
+  (load-data "testing_data.clj.gz"))
+
+(defn load-training-data []
+  (load-data "training_data.clj.gz"))
+
+(defn load-validation-data []
+  (load-data "validation_data.clj.gz"))
 
 (defn reshape-inputs [inputs]
   (mapv #(m/reshape % [784, 1]) inputs))
 
 (defn vectorized-result [digit]
-  (assoc (m/zero-array [10,1]) digit [1.0]))
+  (assoc (m/zero-array [10, 1]) digit [1.0]))
 
 (defn save! [filename data]
   (with-open [w (-> filename
