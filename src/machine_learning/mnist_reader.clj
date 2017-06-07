@@ -11,16 +11,16 @@
                      GZIPInputStream.
                      io/reader
                      PushbackReader.)]
-    (read in)))
+    (m/matrix (read in))))
 
 (defn load-testing-data []
-  (load-data "testing_data.clj.gz"))
+  (load-data (io/resource "testing_data.clj.gz")))
 
 (defn load-training-data []
-  (load-data "training_data.clj.gz"))
+  (load-data (io/resource "training_data.clj.gz")))
 
 (defn load-validation-data []
-  (load-data "validation_data.clj.gz"))
+  (load-data (io/resource "validation_data.clj.gz")))
 
 (defn reshape-inputs [inputs]
   (mapv #(m/reshape % [784, 1]) inputs))

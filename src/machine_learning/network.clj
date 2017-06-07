@@ -8,7 +8,7 @@
             )
   (:import (java.util Random)))
 
-;(m/set-current-implementation :vectorz)
+(m/set-current-implementation :vectorz)
 
 (defn zero-array [array]
   (mapv m/zero-array (map m/shape array)))
@@ -25,22 +25,22 @@
     (throw (IllegalArgumentException. (format "create-network requires sizes to have at least one element, was: %s" sizes))))
   {:num-layers (count sizes)
    :sizes      sizes
-   :biases     (mapv mr/sample-normal (map vector (rest sizes) (repeat 1)))
-   :weights    (mapv mr/sample-normal (map vector (rest sizes) (butlast sizes)))})
+   :biases     (map #(mr/sample-normal [% 1]) (rest sizes))
+   :weights    (map #(mr/sample-normal [%1 %2]) (rest sizes) (butlast sizes))})
 
 (defn sigmoid [z]
-  (if-not (coll? z)
+  (if-not (or (m/vec? z) (m/matrix? z))
     (/ 1.0 (+ 1 (Math/exp (- z))))
-    (mapv sigmoid z)))
+    (m/emap sigmoid z)))
 
 (defn sigmoid-prime [z]
-  (if-not (coll? z)
+  (if-not (or (m/vec? z) (m/matrix? z))
     (* (sigmoid z) (- 1 (sigmoid z)))
     (let [sz (sigmoid z)]
       (* sz (mapv - (repeat 1) sz)))))
 
 (defn assert-correct-input [input]
-  (if (vector? input)
+  (if (or (m/vec? input) (m/matrix? input))
     (let [shape (m/shape input)]
       (if (and (= 2 (count shape))
                (= 1 (second shape)))
@@ -54,7 +54,7 @@
          weights (:weights network)]
     (if (empty? biases)
       result
-      (let [output (sigmoid (+ (map #(m/dot % result) (first weights)) (first biases)))]
+      (let [output (sigmoid (+ (map #(m/inner-product % result) (first weights)) (first biases)))]
         (recur output (rest biases) (rest weights))))))
 
 (defn cost-derivative [output_activations desired_output]
@@ -64,13 +64,13 @@
   (loop [activation (assert-correct-input input)
          biases (:biases network)
          weights (:weights network)
-         activations [input]
+         activations [(m/matrix input)]
          zs []]
     (if (empty? biases)
       [activations zs]
-      (let [z (+ (map #(m/dot % activation) (first weights)) (first biases))
+      (let [z (+ (map #(m/inner-product % activation) (first weights)) (first biases))
             next_activation (sigmoid z)]
-        (recur next_activation (rest biases) (rest weights) (conj activations next_activation) (conj zs z))))))
+        (recur next_activation (rest biases) (rest weights) (conj activations (m/matrix next_activation)) (conj zs (m/matrix z)))))))
 
 (defn backprop [network [input desired_output]]
   "Return a tuple '(nabla_b, nabla_w)' representing the
@@ -84,13 +84,13 @@
     (loop [layers (range last_layer_index 0 -1)
            last_delta delta
            nabla_b (assoc zero_b last_layer_index delta)
-           nabla_w (assoc zero_w last_layer_index (m/dot delta (m/transpose (nth activations last_layer_index))))]
+           nabla_w (assoc zero_w last_layer_index (m/inner-product delta (m/transpose (nth activations last_layer_index))))]
       (if (empty? layers)
         [nabla_b nabla_w]
         (let [layer_index (first layers)
               sp (sigmoid-prime (nth zs (dec layer_index)))
-              delta_b (* sp (m/dot (m/transpose (nth (:weights network) layer_index)) last_delta))
-              delta_w (m/dot delta_b (m/transpose (nth activations (dec layer_index))))]
+              delta_b (* sp (m/inner-product (m/transpose (nth (:weights network) layer_index)) last_delta))
+              delta_w (m/inner-product delta_b (m/transpose (nth activations (dec layer_index))))]
           (recur (rest layers) delta_b (assoc nabla_b (dec layer_index) delta_b) (assoc nabla_w (dec layer_index) delta_w)))))))
 
 (defn modify-vector [vector modificaton batch-size eta]
@@ -108,31 +108,38 @@
     (if (empty? remaining_batch)
       modified_network
       (let [[delta_nabla_b delta_nabla_w] (backprop network (first remaining_batch))
-            _nabla_b (mapv + nabla_b delta_nabla_b)
-            _nabla_w (mapv + nabla_w delta_nabla_w)
+            _nabla_b (+ nabla_b delta_nabla_b)
+            _nabla_w (+ nabla_w delta_nabla_w)
             biases (mapv #(modify-vector %1 %2 (count batch) eta) (:biases modified_network) _nabla_b)
             weights (mapv #(modify-vector %1 %2 (count batch) eta) (:weights modified_network) _nabla_w)]
         (recur (assoc modified_network :weights weights :biases biases) (rest remaining_batch) _nabla_b _nabla_w)))))
 
-(defn run-test [network test_data]
+(defn index-of-max [output]
+  (first (apply max-key #(first (second %)) (map-indexed vector output))))
+
+(defn run-test [network input]
+  (index-of-max (feed-forward network input)))
+
+(defn run-tests [network test_data]
   (loop [remaining_data test_data
          results []]
-    (if (< 0 (count remaining_data))
+    (if (empty? remaining_data)
       results
-      (let [x (ffirst remaining_data)
-            y (second (first remaining_data))]
-        (recur (rest remaining_data) (conj results [(m/emax (feed-forward network x)) y]))))))
+      (let [input (ffirst remaining_data)
+            output (run-test network input)
+            expected-output (second (first remaining_data))]
+        (recur (rest remaining_data) (conj results [output expected-output]))))))
 
 (defn evaluate [network test_data]
-  (let [test_results (run-test network test_data)]
+  (let [test_results (run-tests network test_data)]
     (reduce (fn [result [x y]] (if (= x y) (inc result) result)) 0 test_results)))
 
 (defn sgd-epoc [network training_data batch_size eta]
   (let [batches (partition batch_size batch_size nil (shuffle training_data))]
     (loop [updated_network network remaining_batches batches]
-      (if (< 0 (count updated_network))
+      (if (empty? remaining_batches)
         updated_network
-        (recur (update-mini-batch updated_network (first batches) eta) (rest batches))))))
+        (recur (update-mini-batch updated_network (first remaining_batches) eta) (rest remaining_batches))))))
 
 (defn sgd
   ([network training_data epocs mini_batch_size eta]
@@ -153,6 +160,5 @@
          (println (format "Epoc %s: %s / %s" epoc (evaluate result test_data) (count test_data)))))
      (if (>= epoc epocs)
        result
-       (do
-         (recur (inc epoc) (sgd-epoc result training_data mini_batch_size eta)))))))
+       (recur (inc epoc) (sgd-epoc result training_data mini_batch_size eta))))))
 
