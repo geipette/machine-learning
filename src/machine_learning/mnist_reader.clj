@@ -11,7 +11,7 @@
                      GZIPInputStream.
                      io/reader
                      PushbackReader.)]
-    (m/matrix (read in))))
+    (read in)))
 
 (defn load-testing-data []
   (load-data (io/resource "testing_data.clj.gz")))

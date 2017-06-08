@@ -93,8 +93,8 @@
               delta_w (m/inner-product delta_b (m/transpose (nth activations (dec layer_index))))]
           (recur (rest layers) delta_b (assoc nabla_b (dec layer_index) delta_b) (assoc nabla_w (dec layer_index) delta_w)))))))
 
-(defn modify-vector [vector modificaton batch-size eta]
-  (mapv - vector (* (/ eta batch-size) modificaton)))
+(defn modify-network [original adjustment eta batch-size]
+  (m/emap #(- %1 (* (/ eta batch-size) %2)) original adjustment))
 
 (defn update-mini-batch [network batch eta]
   "Update the network's weights and biases by applying
@@ -108,10 +108,11 @@
     (if (empty? remaining_batch)
       modified_network
       (let [[delta_nabla_b delta_nabla_w] (backprop network (first remaining_batch))
-            _nabla_b (+ nabla_b delta_nabla_b)
-            _nabla_w (+ nabla_w delta_nabla_w)
-            biases (mapv #(modify-vector %1 %2 (count batch) eta) (:biases modified_network) _nabla_b)
-            weights (mapv #(modify-vector %1 %2 (count batch) eta) (:weights modified_network) _nabla_w)]
+            _nabla_b (map + nabla_b delta_nabla_b)
+            _nabla_w (map + nabla_w delta_nabla_w)
+            batch-size (count batch)
+            biases (map modify-network (:biases network) _nabla_b (repeat batch-size) (repeat eta))
+            weights (map modify-network (:weights network) _nabla_w (repeat batch-size) (repeat eta))]
         (recur (assoc modified_network :weights weights :biases biases) (rest remaining_batch) _nabla_b _nabla_w)))))
 
 (defn index-of-max [output]
