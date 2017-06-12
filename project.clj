@@ -7,6 +7,7 @@
                  [ch.qos.logback/logback-classic "1.2.3"]
                  [net.mikera/core.matrix "0.60.3"]
                  [net.mikera/vectorz-clj "0.47.0"]
+                 [clatrix "0.5.0"]
                  [uncomplicate/neanderthal "0.10.0"]
                  [org.clojure/data.json "0.2.6"]
                  [org.clojure/tools.cli "0.3.5"]]

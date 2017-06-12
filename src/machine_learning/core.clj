@@ -22,7 +22,7 @@
         validation_data (do-and-print load-validation-data "  loading validation data")
         training_data (do-and-print load-training-data "  loading trainig data")
         network (do-and-print #(create-network [784, 30, 10]) "  creating network")]
-    (sgd network training_data 30 10 learn_rate testing_data))
+    (do-and-print #(sgd network training_data 30 10 learn_rate testing_data) "Running network"))
   )
 
 (defn -main [& args]

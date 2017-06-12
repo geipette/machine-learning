@@ -93,27 +93,26 @@
               delta_w (m/inner-product delta_b (m/transpose (nth activations (dec layer_index))))]
           (recur (rest layers) delta_b (assoc nabla_b (dec layer_index) delta_b) (assoc nabla_w (dec layer_index) delta_w)))))))
 
-(defn modify-network [original adjustment eta batch-size]
+(defn accumulate-deltas [[acc_biases acc_weights] [delta_biases delta_weights]]
+  [(map + acc_biases delta_biases) (map + acc_weights delta_weights)])
+
+(defn backprop-batch [network batch]
+  (reduce accumulate-deltas [(zero-array (:biases network)) (zero-array (:weights network))]
+          (pmap #(backprop network %) batch)))
+
+(defn apply-delta [original adjustment eta batch-size]
   (m/emap #(- %1 (* (/ eta batch-size) %2)) original adjustment))
 
-(defn update-mini-batch [network batch eta]
+(defn update-batch [network batch eta]
   "Update the network's weights and biases by applying
   gradient descent using backpropagation to a single mini batch.
   The \"batch\" is a list of tuples \"(x, y)\", and \"eta\"
   is the learning rate."
-  (loop [modified_network network
-         remaining_batch batch
-         nabla_b (zero-array (:biases network))
-         nabla_w (zero-array (:weights network))]
-    (if (empty? remaining_batch)
-      modified_network
-      (let [[delta_nabla_b delta_nabla_w] (backprop network (first remaining_batch))
-            _nabla_b (map + nabla_b delta_nabla_b)
-            _nabla_w (map + nabla_w delta_nabla_w)
-            batch-size (count batch)
-            biases (map modify-network (:biases network) _nabla_b (repeat batch-size) (repeat eta))
-            weights (map modify-network (:weights network) _nabla_w (repeat batch-size) (repeat eta))]
-        (recur (assoc modified_network :weights weights :biases biases) (rest remaining_batch) _nabla_b _nabla_w)))))
+  (let [[delta_biases delta_weights] (backprop-batch network batch)
+        batch-size (count batch)
+        biases (map apply-delta (:biases network) delta_biases (repeat eta) (repeat batch-size))
+        weights (map apply-delta (:weights network) delta_weights (repeat eta) (repeat batch-size))]
+    (assoc network :weights weights :biases biases)))
 
 (defn index-of-max [output]
   (first (apply max-key #(first (second %)) (map-indexed vector output))))
@@ -140,7 +139,7 @@
     (loop [updated_network network remaining_batches batches]
       (if (empty? remaining_batches)
         updated_network
-        (recur (update-mini-batch updated_network (first remaining_batches) eta) (rest remaining_batches))))))
+        (recur (update-batch updated_network (first remaining_batches) eta) (rest remaining_batches))))))
 
 (defn sgd
   ([network training_data epocs mini_batch_size eta]
@@ -161,5 +160,5 @@
          (println (format "Epoc %s: %s / %s" epoc (evaluate result test_data) (count test_data)))))
      (if (>= epoc epocs)
        result
-       (recur (inc epoc) (sgd-epoc result training_data mini_batch_size eta))))))
+       (recur (inc epoc) (time (sgd-epoc result training_data mini_batch_size eta)))))))
 
