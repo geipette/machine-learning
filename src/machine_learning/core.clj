@@ -1,7 +1,9 @@
 (ns machine-learning.core
   (:require [machine-learning.network :refer :all]
             [machine-learning.mnist-reader :refer [load-testing-data load-validation-data load-training-data]]
-            [clojure.tools.cli :refer [parse-opts]])
+            [clojure.tools.cli :refer [parse-opts]]
+            [metrics.reporters.console :as console]
+            [metrics.core :refer [default-registry]])
   (:gen-class))
 
 (def cli-options
@@ -10,6 +12,8 @@
     :default 3.0
     :parse-fn #(Double/parseDouble %)]
    ])
+
+(def reg default-registry)
 
 (defn do-and-print [f str]
   (println str)
@@ -22,6 +26,7 @@
         validation_data (do-and-print load-validation-data "  loading validation data")
         training_data (do-and-print load-training-data "  loading trainig data")
         network (do-and-print #(create-network [784, 30, 10]) "  creating network")]
+    (console/start (console/reporter reg  {}) 10)
     (do-and-print #(sgd network training_data 30 10 learn_rate testing_data) "Running network"))
   )
 

@@ -2,6 +2,7 @@
   (:require [clojure.core.matrix :as m]
             [clojure.core.matrix.random :as mr]
             [clojure.core.matrix.operators :refer [* + -]]
+            [metrics.timers :refer [timer time!]]
 
     ;[uncomplicate.neanderthal.core :refer :all]
     ;[uncomplicate.neanderthal.native :refer :all]
@@ -108,7 +109,7 @@
   gradient descent using backpropagation to a single mini batch.
   The \"batch\" is a list of tuples \"(x, y)\", and \"eta\"
   is the learning rate."
-  (let [[delta_biases delta_weights] (backprop-batch network batch)
+  (let [[delta_biases delta_weights] (time! (timer "backprop-batch") (backprop-batch network batch))
         batch-size (count batch)
         biases (map apply-delta (:biases network) delta_biases (repeat eta) (repeat batch-size))
         weights (map apply-delta (:weights network) delta_weights (repeat eta) (repeat batch-size))]
@@ -121,14 +122,7 @@
   (index-of-max (feed-forward network input)))
 
 (defn run-tests [network test_data]
-  (loop [remaining_data test_data
-         results []]
-    (if (empty? remaining_data)
-      results
-      (let [input (ffirst remaining_data)
-            output (run-test network input)
-            expected-output (second (first remaining_data))]
-        (recur (rest remaining_data) (conj results [output expected-output]))))))
+  (pmap (fn [[input expected_output]] [(run-test network input) expected_output]) test_data))
 
 (defn evaluate [network test_data]
   (let [test_results (run-tests network test_data)]
@@ -139,7 +133,7 @@
     (loop [updated_network network remaining_batches batches]
       (if (empty? remaining_batches)
         updated_network
-        (recur (update-batch updated_network (first remaining_batches) eta) (rest remaining_batches))))))
+        (recur (time! (timer "update-batch") (update-batch updated_network (first remaining_batches) eta)) (rest remaining_batches))))))
 
 (defn sgd
   ([network training_data epocs mini_batch_size eta]
@@ -155,10 +149,13 @@
      tracking progress, but slows things down substantially."
    (loop [epoc 0 result network]
      (if (< 0 epoc)
-       (if (nil? test_data)
-         (println (format "Epoch %s complete" epoc))
-         (println (format "Epoc %s: %s / %s" epoc (evaluate result test_data) (count test_data)))))
+       (do
+         (if (nil? test_data)
+          (println (format "Epoch %s complete" epoc))
+          (println (format "Epoc %s: %s / %s" epoc (time! (timer "evaluate") (evaluate result test_data)) (count test_data))))
+         ()))
      (if (>= epoc epocs)
        result
-       (recur (inc epoc) (time (sgd-epoc result training_data mini_batch_size eta)))))))
+       (recur (inc epoc) (time! (timer "sgd-epoc")
+                                (sgd-epoc result training_data mini_batch_size eta)))))))
 

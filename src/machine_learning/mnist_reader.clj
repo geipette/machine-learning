@@ -1,7 +1,8 @@
 (ns machine-learning.mnist-reader
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.core.matrix :as m])
+            [clojure.core.matrix :as m]
+            [taoensso.nippy :as nippy])
   (:import (java.util.zip GZIPOutputStream GZIPInputStream)
            (java.io PushbackReader)))
 
@@ -12,6 +13,9 @@
                      io/reader
                      PushbackReader.)]
     (read in)))
+
+(defn load-prepared-data [filename]
+  )
 
 (defn load-testing-data []
   (load-data (io/resource "testing_data.clj.gz")))

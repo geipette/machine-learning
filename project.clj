@@ -10,7 +10,9 @@
                  [clatrix "0.5.0"]
                  [uncomplicate/neanderthal "0.10.0"]
                  [org.clojure/data.json "0.2.6"]
-                 [org.clojure/tools.cli "0.3.5"]]
+                 [org.clojure/tools.cli "0.3.5"]
+                 [metrics-clojure "2.9.0"]
+                 [com.taoensso/nippy "2.13.0"]]
 
   :main ^:skip-aot machine-learning.core
   :target-path "target/%s"
