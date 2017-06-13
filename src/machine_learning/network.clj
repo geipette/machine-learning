@@ -9,6 +9,7 @@
             )
   (:import (java.util Random)))
 
+;(m/set-current-implementation :clatrix)
 (m/set-current-implementation :vectorz)
 
 (defn zero-array [array]
@@ -38,7 +39,7 @@
   (if-not (or (m/vec? z) (m/matrix? z))
     (* (sigmoid z) (- 1 (sigmoid z)))
     (let [sz (sigmoid z)]
-      (* sz (mapv - (repeat 1) sz)))))
+      (m/emul sz (m/emap #(- 1 %) sz)))))
 
 (defn assert-correct-input [input]
   (if (or (m/vec? input) (m/matrix? input))
@@ -55,7 +56,7 @@
          weights (:weights network)]
     (if (empty? biases)
       result
-      (let [output (sigmoid (+ (map #(m/inner-product % result) (first weights)) (first biases)))]
+      (let [output (sigmoid (m/add (m/inner-product (first weights) result) (first biases)))]
         (recur output (rest biases) (rest weights))))))
 
 (defn cost-derivative [output_activations desired_output]
@@ -69,7 +70,7 @@
          zs []]
     (if (empty? biases)
       [activations zs]
-      (let [z (+ (map #(m/inner-product % activation) (first weights)) (first biases))
+      (let [z (m/add (m/inner-product (first weights) activation) (first biases))
             next_activation (sigmoid z)]
         (recur next_activation (rest biases) (rest weights) (conj activations (m/matrix next_activation)) (conj zs (m/matrix z)))))))
 
@@ -77,7 +78,7 @@
   "Return a tuple '(nabla_b, nabla_w)' representing the
   gradient for the cost function C_x.  'nabla_b' and
   'nabla_w' are layer-by-layer lists of vectors."
-  (let [[activations zs] (collect-activations network input)
+  (let [[activations zs] (time! (timer "collect-activations") (collect-activations network input))
         delta (* (cost-derivative (last activations) desired_output) (sigmoid-prime (last zs)))
         zero_b (zero-array (:biases network))
         zero_w (zero-array (:weights network))
@@ -133,7 +134,7 @@
     (loop [updated_network network remaining_batches batches]
       (if (empty? remaining_batches)
         updated_network
-        (recur (time! (timer "update-batch") (update-batch updated_network (first remaining_batches) eta)) (rest remaining_batches))))))
+        (recur (update-batch updated_network (first remaining_batches) eta) (rest remaining_batches))))))
 
 (defn sgd
   ([network training_data epocs mini_batch_size eta]
@@ -152,7 +153,7 @@
        (do
          (if (nil? test_data)
           (println (format "Epoch %s complete" epoc))
-          (println (format "Epoc %s: %s / %s" epoc (time! (timer "evaluate") (evaluate result test_data)) (count test_data))))
+          (println (format "Epoc %s: %s / %s" epoc (evaluate result test_data) (count test_data))))
          ()))
      (if (>= epoc epocs)
        result

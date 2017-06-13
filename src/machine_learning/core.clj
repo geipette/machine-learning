@@ -24,7 +24,7 @@
   (println "Loading data...")
   (let [testing_data (do-and-print load-testing-data "  loading testing data")
         validation_data (do-and-print load-validation-data "  loading validation data")
-        training_data (do-and-print load-training-data "  loading trainig data")
+        training_data (do-and-print load-training-data "  loading training data")
         network (do-and-print #(create-network [784, 30, 10]) "  creating network")]
     (console/start (console/reporter reg  {}) 10)
     (do-and-print #(sgd network training_data 30 10 learn_rate testing_data) "Running network"))

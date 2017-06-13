@@ -45,9 +45,9 @@
        (fact "Weights shold be a matrix-array with weights between layers"
              (m/matrix? (first (:weights (create-network [2 3 2])))) => truthy
              (m/row-count (first (:weights (create-network [2 3 2])))) => 3
-             (m/row-count (ffirst (:weights (create-network [2 3 2])))) => 2
+             (m/column-count (first (:weights (create-network [2 3 2])))) => 2
              (m/row-count (nth (:weights (create-network [2 3 2])) 1)) => 2
-             (m/row-count (first (nth (:weights (create-network [2 3 2])) 1))) => 3
+             (m/column-count (nth (:weights (create-network [2 3 2])) 1)) => 3
              )
        )
 
@@ -72,13 +72,15 @@
 
 (facts "about 'feed-forward'"
        (fact "returns expected output structure"
-             (count (feed-forward (create-network [2 3 2]) [[1] [1]])) => 2)
+             (m/row-count (feed-forward (create-network [2 3 2]) [[1] [1]])) => 2)
        (fact "return expected output for given networks"
-             (feed-forward test-network-1 [[0] [0]]) => [[0.5] [0.5]]
-             (feed-forward test-network-1 [[1] [1]]) => [[0.5] [0.5]]
-             (feed-forward (assoc test-network-1 :biases [[[-1] [1] [-1]] [[0] [0]]]) [[1] [1]]) => [[0.5] [0.5]]
-             (feed-forward (assoc test-network-1 :biases [[[-1] [1] [-1]] [[1] [1]]]) [[1] [1]]) => [[0.7310585786300049] [0.7310585786300049]]
-             (feed-forward test-network-2 [[1] [1]]) => [[0.5544095665798978] [0.2550182532563072]]))
+             (feed-forward test-network-1 [[0] [0]]) => (m/matrix [[0.5] [0.5]])
+             (feed-forward test-network-1 [[1] [1]]) => (m/matrix [[0.5] [0.5]])
+             (feed-forward (assoc test-network-1 :biases [[[-1] [1] [-1]] [[0] [0]]]) [[1] [1]]) => (m/matrix [[0.5] [0.5]])
+             (feed-forward (assoc test-network-1 :biases [[[-1] [1] [-1]] [[1] [1]]]) [[1] [1]]) => (m/matrix [[0.7310585786300049] [0.7310585786300049]])
+             (feed-forward test-network-2 [[1] [1]]) => (m/matrix [[0.5544095665798978] [0.2550182532563072]])
+             )
+       )
 
 (facts "about 'collect-activations'"
        (fact "returns expected output structure"
