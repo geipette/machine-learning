@@ -2,11 +2,7 @@
   (:require [clojure.core.matrix :as m]
             [clojure.core.matrix.random :as mr]
             [clojure.core.matrix.operators :refer [* + -]]
-            [metrics.timers :refer [timer time!]]
-
-    ;[uncomplicate.neanderthal.core :refer :all]
-    ;[uncomplicate.neanderthal.native :refer :all]
-            )
+            [metrics.timers :refer [timer time!]])
   (:import (java.util Random)))
 
 ;(m/set-current-implementation :clatrix)
@@ -78,7 +74,7 @@
   "Return a tuple '(nabla_b, nabla_w)' representing the
   gradient for the cost function C_x.  'nabla_b' and
   'nabla_w' are layer-by-layer lists of vectors."
-  (let [[activations zs] (time! (timer "collect-activations") (collect-activations network input))
+  (let [[activations zs] (collect-activations network input)
         delta (* (cost-derivative (last activations) desired_output) (sigmoid-prime (last zs)))
         zero_b (zero-array (:biases network))
         zero_w (zero-array (:weights network))
@@ -110,7 +106,7 @@
   gradient descent using backpropagation to a single mini batch.
   The \"batch\" is a list of tuples \"(x, y)\", and \"eta\"
   is the learning rate."
-  (let [[delta_biases delta_weights] (time! (timer "backprop-batch") (backprop-batch network batch))
+  (let [[delta_biases delta_weights] (backprop-batch network batch)
         batch-size (count batch)
         biases (map apply-delta (:biases network) delta_biases (repeat eta) (repeat batch-size))
         weights (map apply-delta (:weights network) delta_weights (repeat eta) (repeat batch-size))]
@@ -157,6 +153,6 @@
          ()))
      (if (>= epoc epocs)
        result
-       (recur (inc epoc) (time! (timer "sgd-epoc")
-                                (sgd-epoc result training_data mini_batch_size eta)))))))
+       (recur (inc epoc)
+              (sgd-epoc result training_data mini_batch_size eta))))))
 
