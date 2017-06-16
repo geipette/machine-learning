@@ -57,7 +57,8 @@
    :biases     (list (m/matrix [[0] [0] [0]])
                      (m/matrix [[0] [0]]))
    :weights    (list (m/matrix [[0 0] [0 0] [0 0]])
-                     (m/matrix [[0 0 0] [0 0 0]]))})
+                     (m/matrix [[0 0 0] [0 0 0]]))
+   :cost       (->QuadraticCost)})
 
 (def test-network-2
   {:num-layers 3
@@ -68,7 +69,8 @@
                                 [0.96918883 -0.89932594]
                                 [1.51664486 0.30323217]])
                      (m/matrix [[0.62191559 -0.40955908 1.42636803]
-                                [0.50692284 -0.64028764 -2.13522075]]))})
+                                [0.50692284 -0.64028764 -2.13522075]]))
+   :cost        (->QuadraticCost)})
 
 (facts "about 'feed-forward'"
        (fact "returns expected output structure"

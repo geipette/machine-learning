@@ -1,12 +1,43 @@
 (ns machine-learning.network
+  (:refer-clojure :exclude [* + -])
   (:require [clojure.core.matrix :as m]
             [clojure.core.matrix.random :as mr]
+            [clojure.core.matrix.linear :as ml]
             [clojure.core.matrix.operators :refer [* + -]]
             [metrics.timers :refer [timer time!]])
   (:import (java.util Random)))
 
 ;(m/set-current-implementation :clatrix)
 (m/set-current-implementation :vectorz)
+
+(defn sigmoid [z]
+  (if-not (or (m/vec? z) (m/matrix? z))
+    (/ 1.0 (+ 1 (Math/exp (- z))))
+    (m/emap sigmoid z)))
+
+(defn sigmoid-prime [z]
+  (if-not (or (m/vec? z) (m/matrix? z))
+    (* (sigmoid z) (- 1 (sigmoid z)))
+    (let [sz (sigmoid z)]
+      (m/emul sz (m/emap #(- 1 %) sz)))))
+
+(defprotocol Cost
+  (cost [this output desired_output] "Return the cost associated with an output and desired output.")
+  (delta [this output desired_output sigmoid-output] "Return the error delta from the output layer."))
+
+(defrecord QuadraticCost []
+  Cost
+  (cost [this output desired_output]
+    (* 0.5 (m/pow (ml/norm (- output desired_output)) 2)))
+  (delta [this output desired_output sigmoid-output]
+    (* (- output desired_output) (sigmoid-prime sigmoid-output))))
+
+(defrecord CrossEntropyCost []
+  Cost
+  (cost [this output desired_output]
+    (m/esum (- (- (m/log output)) (* (- 1 desired_output) (m/log (- 1 output))))))
+  (delta [this output desired_output sigmoid-output]
+    (- output desired_output)))
 
 (defn zero-array [array]
   (mapv m/zero-array (map m/shape array)))
@@ -24,18 +55,8 @@
   {:num-layers (count sizes)
    :sizes      sizes
    :biases     (map #(mr/sample-normal [% 1]) (rest sizes))
-   :weights    (map #(mr/sample-normal [%1 %2]) (rest sizes) (butlast sizes))})
-
-(defn sigmoid [z]
-  (if-not (or (m/vec? z) (m/matrix? z))
-    (/ 1.0 (+ 1 (Math/exp (- z))))
-    (m/emap sigmoid z)))
-
-(defn sigmoid-prime [z]
-  (if-not (or (m/vec? z) (m/matrix? z))
-    (* (sigmoid z) (- 1 (sigmoid z)))
-    (let [sz (sigmoid z)]
-      (m/emul sz (m/emap #(- 1 %) sz)))))
+   :weights    (map #(mr/sample-normal [%1 %2]) (rest sizes) (butlast sizes))
+   :cost       (->CrossEntropyCost)})
 
 (defn assert-correct-input [input]
   (if (or (m/vec? input) (m/matrix? input))
@@ -55,9 +76,6 @@
       (let [output (sigmoid (m/add (m/inner-product (first weights) result) (first biases)))]
         (recur output (rest biases) (rest weights))))))
 
-(defn cost-derivative [output_activations desired_output]
-  (- output_activations desired_output))
-
 (defn collect-activations [network input]
   (loop [activation (assert-correct-input input)
          biases (:biases network)
@@ -75,7 +93,7 @@
   gradient for the cost function C_x.  'nabla_b' and
   'nabla_w' are layer-by-layer lists of vectors."
   (let [[activations zs] (collect-activations network input)
-        delta (* (cost-derivative (last activations) desired_output) (sigmoid-prime (last zs)))
+        delta (delta (:cost network) (last activations) desired_output (last zs))
         zero_b (zero-array (:biases network))
         zero_w (zero-array (:weights network))
         last_layer_index (- (:num-layers network) 2)]
