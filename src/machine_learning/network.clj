@@ -1,9 +1,9 @@
 (ns machine-learning.network
-  (:refer-clojure :exclude [* + -])
+  (:refer-clojure :exclude [* + - /])
   (:require [clojure.core.matrix :as m]
             [clojure.core.matrix.random :as mr]
             [clojure.core.matrix.linear :as ml]
-            [clojure.core.matrix.operators :refer [* + -]]
+            [clojure.core.matrix.operators :refer [* + - /]]
             [metrics.timers :refer [timer time!]])
   (:import (java.util Random)))
 
@@ -39,6 +39,28 @@
   (delta [this output desired_output sigmoid-output]
     (- output desired_output)))
 
+(defprotocol WeightInitializer
+  (init-biases [this sizes] "Return an array of biases for the layers in the network.
+   Note that the first layer is assumed to be an input layer, and
+   by convention we won't set any biases for those neurons, since
+   biases are only ever used in computing the outputs from later
+   layers.")
+  (init-weights [this sizes] "Return an array of weights for the neuron connections in a network."))
+
+(defrecord LargeWeightInitializer []
+  WeightInitializer
+  (init-biases [this sizes]
+    (map #(mr/sample-normal [% 1]) (rest sizes)))
+  (init-weights [this sizes]
+    (map #(mr/sample-normal [%1 %2]) (rest sizes) (butlast sizes))))
+
+(defrecord DefaultWeightInitializer []
+  WeightInitializer
+  (init-biases [this sizes]
+    (map #(mr/sample-normal [% 1]) (rest sizes)))
+  (init-weights [this sizes]
+    (map (fn [sx sy] (m/emap #(/ % (Math/sqrt sy)) (mr/sample-normal [sx sy]))) (rest sizes) (butlast sizes))))
+
 (defn zero-array [array]
   (mapv m/zero-array (map m/shape array)))
 
@@ -49,14 +71,17 @@
      (into [] (repeatedly n #(.nextGaussian rng)))
      (mapv #(sample-gaussian % rng) n))))
 
-(defn create-network [sizes]
-  (if (>= 2 (count sizes))
-    (throw (IllegalArgumentException. (format "create-network requires sizes to have at least one element, was: %s" sizes))))
-  {:num-layers (count sizes)
-   :sizes      sizes
-   :biases     (map #(mr/sample-normal [% 1]) (rest sizes))
-   :weights    (map #(mr/sample-normal [%1 %2]) (rest sizes) (butlast sizes))
-   :cost       (->CrossEntropyCost)})
+(defn create-network
+  ([sizes]
+    (create-network sizes (->DefaultWeightInitializer) (->CrossEntropyCost)))
+  ([sizes weight-initializer cost]
+   (if (>= 2 (count sizes))
+     (throw (IllegalArgumentException. (format "create-network requires sizes to have at least one element, was: %s" sizes))))
+   {:num-layers (count sizes)
+    :sizes      sizes
+    :biases     (init-biases weight-initializer sizes)
+    :weights    (init-weights weight-initializer sizes)
+    :cost       cost}))
 
 (defn assert-correct-input [input]
   (if (or (m/vec? input) (m/matrix? input))

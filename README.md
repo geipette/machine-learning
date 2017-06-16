@@ -5,7 +5,6 @@ Implementing a written character recognizer in Clojure based on neural networks 
 # TODO
 - Softmax
 - Visual report
-- Weight initialization
 - Regularization
     - L2
     - Dropout

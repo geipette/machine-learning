@@ -7,11 +7,23 @@
             [clojure.string :as str])
   (:gen-class))
 
+(defn parse-int [str]
+  (Integer/parseInt str))
+
+(defn parse-double [str]
+  (Double/parseDouble str))
+
 (def cli-options
   ;; An option with a required argument
   [["-l" "--learn-rate LEARN_RATE" "The learn rate float"
-    :default 3.0
-    :parse-fn #(Double/parseDouble %)]
+    :default 0.5
+    :parse-fn parse-double]
+   ["-e" "--epocs EPOCS" "The number of epocs to train"
+    :default 30
+    :parse-fn parse-int]
+   ["-bs" "--batch-size" "The size of the training batches"
+    :default 10
+    :parse-fn parse-int]
    ["-h" "--help" "Print this help"]])
 
 (defn usage [options-summary]
@@ -51,15 +63,15 @@
   (f))
 
 (defn sgd-mnist [options]
-  (let [learn_rate (:learn-rate options)]
-    (println "Running training with learn_rate: " learn_rate)
+  (let [{:keys [learn-rate epocs batch-size]} options]
+    (println "Running training with: " options)
     (println "Loading data...")
     (let [testing_data (do-and-print load-testing-data "  loading testing data")
           validation_data (do-and-print load-validation-data "  loading validation data")
           training_data (do-and-print load-training-data "  loading training data")
           network (do-and-print #(create-network [784, 30, 10]) "  creating network")]
       ;(console/start (console/reporter reg  {}) 10)
-      (do-and-print #(sgd network training_data 30 10 learn_rate testing_data) "Running network"))))
+      (do-and-print #(sgd network training_data epocs batch-size learn-rate testing_data) "Running network"))))
 
 (defn -main [& args]
   (let [{:keys [action options exit-message ok?]} (validate-args args)]
