@@ -22,8 +22,10 @@
       (m/emul sz (m/emap #(- 1 %) sz)))))
 
 (defprotocol Cost
-  (cost [this output desired_output] "Return the cost associated with an output and desired output.")
-  (delta [this output desired_output sigmoid-output] "Return the error delta from the output layer."))
+  (cost [this output desired_output]
+    "Return the cost associated with an output and desired output.")
+  (delta [this output desired_output sigmoid-output]
+    "Return the error delta from the output layer."))
 
 (defrecord QuadraticCost []
   Cost
@@ -40,12 +42,14 @@
     (- output desired_output)))
 
 (defprotocol WeightInitializer
-  (init-biases [this sizes] "Return an array of biases for the layers in the network.
+  (init-biases [this sizes]
+    "Return an array of biases for the layers in the network.
    Note that the first layer is assumed to be an input layer, and
    by convention we won't set any biases for those neurons, since
    biases are only ever used in computing the outputs from later
    layers.")
-  (init-weights [this sizes] "Return an array of weights for the neuron connections in a network."))
+  (init-weights [this sizes]
+    "Return an array of weights for the neuron connections in a network."))
 
 (defrecord LargeWeightInitializer []
   WeightInitializer
@@ -64,24 +68,18 @@
 (defn zero-array [array]
   (mapv m/zero-array (map m/shape array)))
 
-(defn sample-gaussian
-  ([n] (sample-gaussian n (Random.)))
-  ([n rng]
-   (if-not (coll? n)
-     (into [] (repeatedly n #(.nextGaussian rng)))
-     (mapv #(sample-gaussian % rng) n))))
+(defrecord TrainingSpec [epocs batch_size learn_rate lambda cost])
 
 (defn create-network
   ([sizes]
-    (create-network sizes (->DefaultWeightInitializer) (->CrossEntropyCost)))
-  ([sizes weight-initializer cost]
+   (create-network sizes (->DefaultWeightInitializer) (->CrossEntropyCost)))
+  ([sizes weight_initializer training_spec]
    (if (>= 2 (count sizes))
      (throw (IllegalArgumentException. (format "create-network requires sizes to have at least one element, was: %s" sizes))))
-   {:num-layers (count sizes)
+   {:num_layers (count sizes)
     :sizes      sizes
-    :biases     (init-biases weight-initializer sizes)
-    :weights    (init-weights weight-initializer sizes)
-    :cost       cost}))
+    :biases     (init-biases weight_initializer sizes)
+    :weights    (init-weights weight_initializer sizes)}))
 
 (defn assert-correct-input [input]
   (if (or (m/vec? input) (m/matrix? input))
@@ -113,15 +111,15 @@
             next_activation (sigmoid z)]
         (recur next_activation (rest biases) (rest weights) (conj activations (m/matrix next_activation)) (conj zs (m/matrix z)))))))
 
-(defn backprop [network [input desired_output]]
+(defn backprop [network training_spec [input desired_output]]
   "Return a tuple '(nabla_b, nabla_w)' representing the
   gradient for the cost function C_x.  'nabla_b' and
   'nabla_w' are layer-by-layer lists of vectors."
   (let [[activations zs] (collect-activations network input)
-        delta (delta (:cost network) (last activations) desired_output (last zs))
+        delta (delta (:cost training_spec) (last activations) desired_output (last zs))
         zero_b (zero-array (:biases network))
         zero_w (zero-array (:weights network))
-        last_layer_index (- (:num-layers network) 2)]
+        last_layer_index (- (:num_layers network) 2)]
     (loop [layers (range last_layer_index 0 -1)
            last_delta delta
            nabla_b (assoc zero_b last_layer_index delta)
@@ -137,22 +135,25 @@
 (defn accumulate-deltas [[acc_biases acc_weights] [delta_biases delta_weights]]
   [(map + acc_biases delta_biases) (map + acc_weights delta_weights)])
 
-(defn backprop-batch [network batch]
+(defn backprop-batch [network training_spec batch]
   (reduce accumulate-deltas [(zero-array (:biases network)) (zero-array (:weights network))]
-          (pmap #(backprop network %) batch)))
+          (pmap #(backprop network training_spec %) batch)))
 
-(defn apply-delta [original adjustment eta batch-size]
-  (m/emap #(- %1 (* (/ eta batch-size) %2)) original adjustment))
+(defn apply-delta [original delta learn_rate batch_size lambda training_data_size]
+  (map (fn [x dt_x]
+         (m/emap #(* (- 1 (* learn_rate (/ lambda training_data_size)))
+                     (- %1 (* (/ learn_rate batch_size) %2))) x dt_x)) original delta))
 
-(defn update-batch [network batch eta]
+(defn update-batch [network training_spec batch training_data_size]
   "Update the network's weights and biases by applying
   gradient descent using backpropagation to a single mini batch.
   The \"batch\" is a list of tuples \"(x, y)\", and \"eta\"
   is the learning rate."
-  (let [[delta_biases delta_weights] (backprop-batch network batch)
+  (let [[delta_biases delta_weights] (backprop-batch network training_spec batch)
         batch-size (count batch)
-        biases (map apply-delta (:biases network) delta_biases (repeat eta) (repeat batch-size))
-        weights (map apply-delta (:weights network) delta_weights (repeat eta) (repeat batch-size))]
+        {:keys [learn_rate lambda]} training_spec
+        biases (apply-delta (:biases network) delta_biases learn_rate batch-size lambda training_data_size)
+        weights (apply-delta (:weights network) delta_weights learn_rate batch-size lambda training_data_size)]
     (assoc network :weights weights :biases biases)))
 
 (defn index-of-max [output]
@@ -168,34 +169,31 @@
   (let [test_results (run-tests network test_data)]
     (reduce (fn [result [x y]] (if (= x y) (inc result) result)) 0 test_results)))
 
-(defn sgd-epoc [network training_data batch_size eta]
-  (let [batches (partition batch_size batch_size nil (shuffle training_data))]
+(defn sgd-epoc [network training_spec training_data]
+  (let [batch_size (:batch_size training_spec)
+        training_data_size (count training_data)
+        batches (partition batch_size batch_size nil (shuffle training_data))]
     (loop [updated_network network remaining_batches batches]
       (if (empty? remaining_batches)
         updated_network
-        (recur (update-batch updated_network (first remaining_batches) eta) (rest remaining_batches))))))
+        (recur (update-batch updated_network training_spec (first remaining_batches) training_data_size) (rest remaining_batches))))))
 
-(defn sgd
-  ([network training_data epocs mini_batch_size eta]
-   (sgd network training_data epocs mini_batch_size eta nil))
-  ([network training_data epocs mini_batch_size eta test_data]
-   "Train the neural network using mini-batch stochastic
-     gradient descent.  The 'training_data' is a list of tuples
-     '(x, y)' representing the training inputs and the desired
-     outputs.  The other non-optional parameters are
-     self-explanatory. If 'test_data' is provided then the
-     network will be evaluated against the test data after each
-     epoch, and partial progress printed out.  This is useful for
-     tracking progress, but slows things down substantially."
-   (loop [epoc 0 result network]
-     (if (< 0 epoc)
-       (do
-         (if (nil? test_data)
-          (println (format "Epoch %s complete" epoc))
-          (println (format "Epoc %s: %s / %s" epoc (evaluate result test_data) (count test_data))))
-         ()))
-     (if (>= epoc epocs)
-       result
-       (recur (inc epoc)
-              (sgd-epoc result training_data mini_batch_size eta))))))
+(defn sgd [network training_spec training_data test_data]
+  "Train the neural network using mini-batch stochastic
+    gradient descent.  The 'training_data' is a list of tuples
+    '(x, y)' representing the training inputs and the desired
+    outputs.  The other non-optional parameters are
+    self-explanatory. If 'test_data' is provided then the
+    network will be evaluated against the test data after each
+    epoch, and partial progress printed out.  This is useful for
+    tracking progress, but slows things down substantially."
+  (loop [epoc 0 result network]
+    (if (< 0 epoc)
+      (if (nil? test_data)
+        (println (format "Epoch %s complete" epoc))
+        (println (format "Epoc %s: %s / %s" epoc (evaluate result test_data) (count test_data)))))
+    (if (>= epoc (:epocs training_spec))
+      result
+      (recur (inc epoc)
+             (sgd-epoc result training_spec training_data)))))
 
