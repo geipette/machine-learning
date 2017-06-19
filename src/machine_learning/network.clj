@@ -73,8 +73,8 @@
 
 (defn create-network
   ([sizes]
-   (create-network sizes (->DefaultWeightInitializer) (->CrossEntropyCost)))
-  ([sizes weight_initializer training_spec]
+   (create-network sizes (->DefaultWeightInitializer)))
+  ([sizes weight_initializer]
    (if (>= 2 (count sizes))
      (throw (IllegalArgumentException. (format "create-network requires sizes to have at least one element, was: %s" sizes))))
    {:num_layers (count sizes)
