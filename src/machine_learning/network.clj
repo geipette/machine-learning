@@ -4,7 +4,8 @@
             [clojure.core.matrix.random :as mr]
             [clojure.core.matrix.linear :as ml]
             [clojure.core.matrix.operators :refer [* + - /]]
-            [metrics.timers :refer [timer time!]])
+            [taoensso.nippy :as nippy :refer [freeze-to-file thaw-from-file]]
+            [clojure.java.io :as io])
   (:import (java.util Random)))
 
 ;(m/set-current-implementation :clatrix)
@@ -165,9 +166,12 @@
 (defn run-tests [network test_data]
   (pmap (fn [[input expected_output]] [(run-test network input) expected_output]) test_data))
 
+(defn evaluate-detailed [network test_data]
+  (let [test_results (apply vector (run-tests network test_data))]
+    (reduce-kv (fn [result pos [x y]] (if (= x y) result (conj result pos))) [] test_results)))
+
 (defn evaluate [network test_data]
-  (let [test_results (run-tests network test_data)]
-    (reduce (fn [result [x y]] (if (= x y) (inc result) result)) 0 test_results)))
+  (- (count test_data) (count (evaluate-detailed network test_data))))
 
 (defn sgd-epoc [network training_spec training_data]
   (let [batch_size (:batch_size training_spec)
@@ -197,3 +201,8 @@
       (recur (inc epoc)
              (sgd-epoc result training_spec training_data)))))
 
+(defn save-network [network filename]
+  (freeze-to-file (io/file filename) network))
+
+(defn load-network [filename]
+  (thaw-from-file (io/file filename)))

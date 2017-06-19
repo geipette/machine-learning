@@ -38,9 +38,7 @@
              (m/row-count (first (:weights (create-network [2 3 2])))) => 3
              (m/column-count (first (:weights (create-network [2 3 2])))) => 2
              (m/row-count (nth (:weights (create-network [2 3 2])) 1)) => 2
-             (m/column-count (nth (:weights (create-network [2 3 2])) 1)) => 3
-             )
-       )
+             (m/column-count (nth (:weights (create-network [2 3 2])) 1)) => 3))
 
 (def test-network-1
   {:num_layers 3
