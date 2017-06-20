@@ -1,7 +1,7 @@
 (ns machine-learning.core
   (:require [machine-learning.network :refer :all]
             [machine-learning.mnist-reader :refer [load-data]]
-            [machine-learning.report.image :refer [save-image-png!]]
+            [machine-learning.report.image :refer [save-images!]]
             [machine-learning.report.html :refer [report write-index-html! ->ReportSettings]]
             [clojure.tools.cli :as cli]
             [metrics.reporters.console :as console]
@@ -133,6 +133,9 @@
         (if (:save options)
           (save-network network (:file options)))
         (if (:report options)
-          (let [test_data (load-testing-data)]
-            (println (format "%s / %s" (evaluate network test_data) (count test_data)))))
+          (let [test_data (load-testing-data)
+                report_results (report network test_data)
+                report_settings (->ReportSettings (:report options))]
+            (save-images! (:details report_results) test_data (:report options))
+            (write-index-html! report_settings report_results)))
         (exit 0 "")))))

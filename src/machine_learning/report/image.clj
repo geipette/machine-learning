@@ -23,6 +23,6 @@
     (ImageIO/write bi "png" ^File (io/as-file filename))))
 
 (defn save-images! [eval test_data dir]
-  (let [^File dir (io/file dir)]
+  (let [^File dir (io/file (io/file dir) "images")]
     (.mkdirs dir)
-    (map #(save-image-png! (first (get test_data %)) (io/file dir (format "%s.png" %))) eval)))
+    (doall (map #(save-image-png! (first (get test_data (:pos %))) (io/file dir (format "%s.png" (:pos %)))) eval))))
