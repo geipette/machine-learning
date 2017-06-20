@@ -163,6 +163,11 @@
 (defn run-test [network input]
   (index-of-max (feed-forward network input)))
 
+(defn softmax [layer]
+  "Calculates softmax distribution of a layer"
+  (let [sum (m/esum layer)]
+    (m/emap #(/ % sum) layer)))
+
 (defn run-tests [network test_data]
   (pmap (fn [[input expected_output]] [(run-test network input) expected_output]) test_data))
 

@@ -17,8 +17,12 @@
     (dorun (map  #(set-pixel bi %1 (first %2)) (range 0 784) image))
     bi))
 
-(defn save-image-png [image filename]
+(defn save-image-png! [image filename]
   (let [^BufferedImage bi (image-for image)
         g (.createGraphics bi)]
     (ImageIO/write bi "png" ^File (io/as-file filename))))
 
+(defn save-images! [eval test_data dir]
+  (let [^File dir (io/file dir)]
+    (.mkdirs dir)
+    (map #(save-image-png! (first (get test_data %)) (io/file dir (format "%s.png" %))) eval)))

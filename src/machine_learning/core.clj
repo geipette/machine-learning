@@ -1,6 +1,8 @@
 (ns machine-learning.core
   (:require [machine-learning.network :refer :all]
             [machine-learning.mnist-reader :refer [load-data]]
+            [machine-learning.report.image :refer [save-image-png!]]
+            [machine-learning.report.html :refer [report write-index-html! ->ReportSettings]]
             [clojure.tools.cli :as cli]
             [metrics.reporters.console :as console]
             [metrics.core :refer [default-registry]]
