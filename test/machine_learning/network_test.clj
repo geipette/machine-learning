@@ -67,9 +67,9 @@
              (feed-forward test-network-1 [[1] [1]]) => (m/matrix [[0.5] [0.5]])
              (feed-forward (assoc test-network-1 :biases [[[-1] [1] [-1]] [[0] [0]]]) [[1] [1]]) => (m/matrix [[0.5] [0.5]])
              (feed-forward (assoc test-network-1 :biases [[[-1] [1] [-1]] [[1] [1]]]) [[1] [1]]) => (m/matrix [[0.7310585786300049] [0.7310585786300049]])
-             (feed-forward test-network-2 [[1] [1]]) => (m/matrix [[0.5544095665798978] [0.2550182532563072]])
-             )
-       )
+             (feed-forward test-network-2 [[1] [1]]) => (m/matrix [[0.5544095665798978] [0.2550182532563072]])))
+
+
 
 (facts "about 'collect-activations'"
        (fact "returns expected output structure"
@@ -129,9 +129,9 @@
                                                          [0.012058352367067714 0.004202462153092783]
                                                          [0.02258975320832233 -0.03803372635180963]])
                                               (m/matrix [[0.012410326813452149 0.00578504658400774 0.01571273237686345]
-                                                         [-0.03402921331965715 -0.04966569874908623 -0.07503260727365008]]))]
-             )
-       )
+                                                         [-0.03402921331965715 -0.04966569874908623 -0.07503260727365008]]))]))
+
+
 
 (facts "about 'update-batch'"
        (fact "updates network as expected"

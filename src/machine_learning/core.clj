@@ -105,8 +105,8 @@
         (format " Epocs: %s" (:epocs options))
         (if (:save options)
           (format " Trained network will be saved as %s" (:file options))
-          " Trained network will be discarded after use.")
-        ]
+          " Trained network will be discarded after use.")]
+
        (str/join \newline)))
 
 (defn sgd-mnist [options]

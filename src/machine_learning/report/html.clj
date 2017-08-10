@@ -31,8 +31,8 @@
            [:head [:link {:rel "stylesheet" :type "text/css" :href "layout.css"}]]
            [:body
             [:h1 (format "Success rate %2.2f%%" (* 100 (/ (:success_count report_results) (float (:total_count report_results)))))]
-            (images (:details report_results))
-            ]]))
+            (images (:details report_results))]]))
+
 
 (defn write-index-html! [report_settings report_results]
   (let [^File dir (io/file (:dir report_settings))]
@@ -46,7 +46,7 @@
       (spit css_file (slurp (io/resource "layout.css"))))))
 
 (defn report [network test_data]
-  (let [detailed_evaluation (evaluate-detailed network test_data)]
+  (let [detailed_evaluation (positions-of-failed-tests network test_data)]
     {:total_count (count test_data)
      :success_count (- (count test_data) (count detailed_evaluation))
      :details (map (fn [pos] (let [sample (get test_data pos)

@@ -171,12 +171,12 @@
 (defn run-tests [network test_data]
   (pmap (fn [[input expected_output]] [(run-test network input) expected_output]) test_data))
 
-(defn evaluate-detailed [network test_data]
+(defn positions-of-failed-tests [network test_data]
   (let [test_results (apply vector (run-tests network test_data))]
     (reduce-kv (fn [result pos [x y]] (if (= x y) result (conj result pos))) [] test_results)))
 
 (defn evaluate [network test_data]
-  (- (count test_data) (count (evaluate-detailed network test_data))))
+  (- (count test_data) (count (positions-of-failed-tests network test_data))))
 
 (defn sgd-epoc [network training_spec training_data]
   (let [batch_size (:batch_size training_spec)
