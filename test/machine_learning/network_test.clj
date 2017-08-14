@@ -33,7 +33,7 @@
        (fact "Biases should be present and have the correct structure"
              (m/shape (:biases (create-network [2 3 4]))) => [2 3 1]
              (m/shape (:biases (create-network [2 3 4 5]))) => [3 3 1])
-       (fact "Weights shold be a matrix-array with weights between layers"
+       (fact "Weights should be a matrix-array with weights between layers"
              (m/matrix? (first (:weights (create-network [2 3 2])))) => truthy
              (m/row-count (first (:weights (create-network [2 3 2])))) => 3
              (m/column-count (first (:weights (create-network [2 3 2])))) => 2
